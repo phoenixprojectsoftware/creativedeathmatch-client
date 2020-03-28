@@ -169,7 +169,7 @@ enum calcBobMode_t
 };
 
 // Quakeworld bob code, this fixes jitters in the mutliplayer since the clock (pparams->time) isn't quite linear
-void V_CalcBob(struct ref_params_s *pparams, float freqmod, calcBobMode_t mode, double &bobtime, float &bob, float &lasttime)
+void V_CalcBob(struct ref_params_s *pparams, float freqmod, calcBobMode_t mode, double &bobtime, float &bob, float &lasttime) 
 {
 	float	cycle;
 	vec3_t	vel;
@@ -203,6 +203,7 @@ void V_CalcBob(struct ref_params_s *pparams, float freqmod, calcBobMode_t mode, 
 
 	bob = sqrt(vel[0] * vel[0] + vel[1] * vel[1]) * cl_bob->value;
 
+
 	if (mode == VB_SIN)
 		bob = bob * 0.3 + bob * 0.7 * sin(cycle);
 	else if (mode == VB_COS)
@@ -211,9 +212,6 @@ void V_CalcBob(struct ref_params_s *pparams, float freqmod, calcBobMode_t mode, 
 		bob = bob * 0.3 + bob * 0.7 * sin(cycle) * sin(cycle);
 	else if (mode == VB_COS2)
 		bob = bob * 0.3 + bob * 0.7 * cos(cycle) * cos(cycle);
-
-	bob = V_min(bob, 4);
-	bob = V_max(bob, -7);
 	//return bob;
 }
 /*
@@ -503,14 +501,19 @@ V_CalcRefdef
 */
 void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 {
-	cl_entity_t		*ent, *view;
-	int				i;
-	vec3_t			angles;
-	float			bob, waterOffset;
+	cl_entity_t				*ent, *view;
+	int						i;
+	vec3_t					angles;
+	float					bobRight = 0, bobUp = 0, bobForward = 0, waterOffset;
 	static viewinterp_t		ViewInterp;
 
 	static float oldz = 0;
 	static float lasttime;
+
+	// double &bobtime, float &bob, float &lasttime
+	static double bobtimes[3] = { 0,0,0 };
+	static float lasttimes[3] = { 0,0,0 };
+
 
 	vec3_t camAngles, camForward, camRight, camUp;
 	cl_entity_t *pwater;
@@ -534,10 +537,9 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	// model origin for the view
 	V_CalcBob(pparams, 0.75f, VB_SIN, bobtimes[0], bobRight, lasttimes[0]); // right
 	V_CalcBob(pparams, 1.50f, VB_SIN, bobtimes[1], bobUp, lasttimes[1]); // up
-	V_CalcBob(pparams, 1.00f, VB_SIN, bobtimes[2], bobForward, lasttimes[2]); // forward
-	// refresh position
+	V_CalcBob(pparams, 1.00f, VB_SIN, bobtimes[2], bobForward, lasttimes[2]); // forward	// refresh position
 	VectorCopy ( pparams->simorg, pparams->vieworg );
-	pparams->vieworg[2] += ( bob );
+	pparams->vieworg[2] += (bobRight);	
 	VectorAdd( pparams->vieworg, pparams->viewheight, pparams->vieworg );
 
 	VectorCopy ( pparams->cl_viewangles, pparams->viewangles );
@@ -668,11 +670,12 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	for (i = 0; i < 3; i++)
 	{
-		view->origin[i] += bobRight * 0.5   * pparams->right[i];
-		view->origin[i] += bobUp * 0.25  * pparams->up[i];
+		view->origin[i] += bobRight * 0.5 * pparams->right[i];
+		view->origin[i] += bobUp * 0.25 * pparams->up[i];
 		view->origin[i] += bobForward * 0.125 * pparams->forward[i];
-	}	view->origin[2] += bob;
-	view->origin[1] += 2 * bob;
+	}
+	
+	view->origin[2] += bobRight;
 
 	// throw in a little tilt.
 	view->angles[YAW] -= bobRight * 0.8;
