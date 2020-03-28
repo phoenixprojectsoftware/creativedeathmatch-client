@@ -4,4 +4,3 @@ linux/release
 build
 compile_commands.json
 thirdparty
-cl_dll\view.cpp

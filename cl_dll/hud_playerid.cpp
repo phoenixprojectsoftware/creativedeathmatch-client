@@ -42,7 +42,7 @@ int CHudPlayerId::Draw(float time)
 	}
 
 	int r, g, b;
-	UnpackRGB(r, g, b, teammate ? RGB_AMMOBAR : RGB_LOW);
+	UnpackRGB(r, g, b, teammate ? RGB_GREENISH : RGB_REDISH);
 
 	char str[64];
 
