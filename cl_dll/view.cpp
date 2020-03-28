@@ -216,7 +216,6 @@ void V_CalcBob(struct ref_params_s *pparams, float freqmod, calcBobMode_t mode, 
 	bob = V_max(bob, -7);
 	//return bob;
 }
-
 /*
 ===============
 V_CalcRoll
