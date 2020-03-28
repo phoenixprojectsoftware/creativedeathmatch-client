@@ -35,7 +35,7 @@ int CHudWatermark::Draw(float time)
 	int r, g, b;
 	UnpackRGB(r, g, b, gHUD.m_iDefaultHUDColor);
 
-	gEngfuncs.pfnDrawString(ScreenWidth / 20, gHUD.m_scrinfo.iCharHeight, "Shooter Tourneys Client", r, g, b);
+	gEngfuncs.pfnDrawString(ScreenWidth / 20, gHUD.m_scrinfo.iCharHeight, "Shooter Tourneys Client powered by OpenAG. Build 2004", r, g, b);
 	gEngfuncs.pfnDrawString(ScreenWidth / 20, gHUD.m_scrinfo.iCharHeight * 2, "Build date " __DATE__, r, g, b);
 
 	if (update_is_available)
