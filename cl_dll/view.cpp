@@ -679,8 +679,6 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	view->angles[YAW] -= bobRight * 0.8;
 	view->angles[ROLL] -= bobUp * 0.8;
 	view->angles[PITCH] -= bobRight * 1.2;
-	pparams->viewangles[ROLL] += bobRight * 0.15;
-	pparams->viewangles[PITCH] += bobRight * 0.55;
 	VectorCopy(view->angles, view->curstate.angles);
 
 	// pushing the view origin down off of the same X/Z plane as the ent's origin will give the
