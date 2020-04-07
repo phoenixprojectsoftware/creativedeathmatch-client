@@ -256,12 +256,12 @@ namespace discord_integration
 
 		void handle_ready(const DiscordUser*)
 		{
-			gEngfuncs.Con_Printf("Connected to Discord.\n");
+			gEngfuncs.Con_Printf("Discord Rich Presence enabled\n");
 		}
 
 		void handle_errored(int error_code, const char* message)
 		{
-			gEngfuncs.Con_Printf("Discord error (%d): %s\n", error_code, message);
+			gEngfuncs.Con_Printf("Error when enable Discord Rich Presence (%d): %s\n", error_code, message);
 		}
 
 		void handle_disconnected(int error_code, const char* message)
