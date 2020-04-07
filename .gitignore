@@ -4,3 +4,5 @@ linux/release
 build
 compile_commands.json
 thirdparty
+.vs
+out
