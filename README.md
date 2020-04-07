@@ -1,5 +1,5 @@
-# grAyG
-grAyG is OpenAG's client library on Grey Source
+# creaTive Deathmatch Client
+The client for the creaTive Deathmatch Player.
 
 # Building
 ## Windows
