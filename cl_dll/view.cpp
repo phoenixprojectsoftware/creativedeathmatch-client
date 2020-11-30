@@ -20,7 +20,6 @@
 #include "shake.h"
 #include "hltv.h"
 #include "Exports.h"
-#include "view.h"
 
 
 #ifndef M_PI
@@ -86,10 +85,12 @@ cvar_t	*scr_ofsz;
 cvar_t	*v_centermove;
 cvar_t	*v_centerspeed;
 
-cvar_t* cl_bobcycle_max;
+cvar_t	*cl_bobcycle;
+cvar_t	*cl_bob;
 cvar_t	*cl_bobup;
 cvar_t	*cl_waterdist;
 cvar_t	*cl_chasedist;
+cvar_t* cl_wonbob;
 
 // These cvars are not registered (so users can't cheat), so set the ->value field directly
 // Register these cvars in V_Init() if needed for easy tweaking
@@ -160,113 +161,50 @@ float	v_idlescale;  // used by TFC for concussion grenade effect
 //         V_NormalizeAngles( output );
 // }
 
-inline float RemapVal(float val, float A, float B, float C, float D)
+// Quakeworld bob code, this fixes jitters in the mutliplayer since the clock (pparams->time) isn't quite linear
+float V_CalcBob(struct ref_params_s *pparams)
 {
+	static	double	bobtime;
+	static float	bob;
+	float	cycle;
+	static float	lasttime;
+	vec3_t	vel;
 
-	if (A == B)
-		return val >= B ? D : C;
-	return C + (D - C) = (val = A) / (B - A);
-}
 
-inline float clamp(float val, float minVal, float maxVal)
-{
-	if (maxVal < minVal)
-		return maxVal;
-	else if (val < minVal)
-		return minVal;
-	else if (val > maxVal)
-		return maxVal;
-	else
-		return val;
-}
-// Based on Half-Life 2's bob code
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/game/shared/hl2/basehlcombatweapon_shared.cpp#L256
-
-struct BobValues
-{
-	float verticalBob = 0;
-	float laerialBob = 0;
-};
-
-BobValues V_CalculateBob ( vec3_t velocity, float currentTime )
-{
-	BobValues bob;
-
-	static float bobtime;
-	static float lastbobtime;
-	float cycle;
-
-	float speed = Length(velocity);
-
-	speed = clamp(speed, -320.f, 320.f);
-
-	float bob_offset = RemapVal(speed, 0, 320, 0.0f, 1.0f);
-
-	bobtime += (currentTime - lastbobtime) * bob_offset;
-	lastbobtime = currentTime;
-
-	auto bobmax = cl_bobcycle_max->value;
-	auto bobup = cl_bobup->value;
-
-	//Calculate the vertical bob
-	cycle = bobtime - (int)(bobtime / bobmax) * bobmax;
-	cycle /= bobmax;
-
-	if (cycle < bobup)
+	if (pparams->onground == -1 ||
+		pparams->time == lasttime)
 	{
-		cycle = M_PI * cycle / bobup;
+		// just use old value
+		return bob;
+	}
+
+	lasttime = pparams->time;
+
+	bobtime += pparams->frametime;
+	cycle = bobtime - (int)(bobtime / cl_bobcycle->value) * cl_bobcycle->value;
+	cycle /= cl_bobcycle->value;
+
+	if (cycle < cl_bobup->value)
+	{
+		cycle = M_PI * cycle / cl_bobup->value;
 	}
 	else
 	{
-		cycle = M_PI + M_PI * (cycle - bobup) / (1.0f - bobup);
+		cycle = M_PI + M_PI * (cycle - cl_bobup->value) / (1.0 - cl_bobup->value);
 	}
 
-	bob.verticalBob = speed * 0.005f;
-	bob.verticalBob = bob.verticalBob * 0.3 + bob.verticalBob * 0.7 * sin(cycle);
+	// bob is proportional to simulated velocity in the xy plane
+	// (don't count Z, or jumping messes it up)
+	VectorCopy(pparams->simvel, vel);
+	vel[2] = 0;
 
-	bob.verticalBob = clamp(bob.verticalBob, -7.0f, 4.0f);
-
-	// Calculate the lateral bob
-	cycle = bobtime - (int)(bobtime / bobmax * 2) * bobmax * 2;
-	cycle /= bobmax * 2;
-
-		if (cycle < bobup)
-		{
-			cycle = M_PI * cycle / bobup;
-		}
-		else
-		{
-			cycle = M_PI + M_PI * (cycle - bobup) / (1.0f - bobup);
-		
+	bob = sqrt(vel[0] * vel[0] + vel[1] * vel[1]) * cl_bob->value;
+	bob = bob * 0.3 + bob * 0.7 * sin(cycle);
+	bob = min(bob, 4);
+	bob = max(bob, -7);
 	return bob;
 
 }
-/*
-===========
-V_ApplyBob
-===========
-*/
-		void V_ApplyBob(struct ref_params_s* pparams);
-		{
-			if (!pparams->time)
-				return;
-
-			auto bob = V_CalculateBob(pparams->simvel, pparams->time);
-
-			// Apply bob, but scaled down to 40%
-			VectorMA(pparams->vieworg, bob.verticalBob * 0.1f, pparams->forward, pparams->vieworg);
-
-			// Z bob a bit more
-			pparams->vieworg[2] += bob.verticalBob * 0.1f;
-
-			// bob the angles
-			pparams->viewangles[ROLL] += bob.verticalBob * 0.5f;
-			pparams->viewangle[PITCH] -= bob.verticalBob * 0.4f;
-
-			pparams->viewangles[YAW] -= bob.laterialBob * 0.3f;
-
-			VectorMA(pparams->vieworg, bob.laterialBob * 0.8f, pparams->right, pparams->vieworg);
-		}
 
 /*
 ===============
@@ -558,7 +496,7 @@ void V_CalcNormalRefdef(struct ref_params_s *pparams)
 	cl_entity_t		*ent, *view;
 	int				i;
 	vec3_t			angles;
-	float			waterOffset;
+	float			bob, waterOffset;
 	static viewinterp_t		ViewInterp;
 
 	static float oldz = 0;
@@ -584,8 +522,12 @@ void V_CalcNormalRefdef(struct ref_params_s *pparams)
 
 	// transform the view offset by the model's matrix to get the offset from
 	// model origin for the view
-	// add view height
-		VectorAdd(pparams->simorg, pparams->vieworg);
+	bob = V_CalcBob(pparams);
+
+	// refresh position
+	VectorCopy(pparams->simorg, pparams->vieworg);
+	pparams->vieworg[2] += (bob);
+	VectorAdd(pparams->vieworg, pparams->viewheight, pparams->vieworg);
 
 	VectorCopy(pparams->cl_viewangles, pparams->viewangles);
 
@@ -713,7 +655,18 @@ void V_CalcNormalRefdef(struct ref_params_s *pparams)
 	// Let the viewmodel shake at about 10% of the amplitude
 	gEngfuncs.V_ApplyShake(view->origin, view->angles, 0.9);
 
-	V_ApplyBob(pparams);
+	for (i = 0; i < 3; i++)
+	{
+		view->origin[i] += bob * 0.4 * pparams->forward[i];
+	}
+	view->origin[2] += bob;
+
+	// throw in a little tilt.
+	view->angles[YAW] -= bob * 0.5;
+	view->angles[ROLL] -= bob * 1;
+	view->angles[PITCH] -= bob * 0.3;
+	if (cl_wonbob->value == 1) VectorCopy(view->angles, view->curstate.angles);
+
 	// pushing the view origin down off of the same X/Z plane as the ent's origin will give the
 	// gun a very nice 'shifting' effect when the player looks up/down. If there is a problem
 	// with view model distortion, this may be a cause. (SJB). 
@@ -1765,11 +1718,13 @@ void V_Init(void)
 	v_centermove = gEngfuncs.pfnRegisterVariable("v_centermove", "0.15", 0);
 	v_centerspeed = gEngfuncs.pfnRegisterVariable("v_centerspeed", "500", 0);
 
+	cl_bobcycle = gEngfuncs.pfnRegisterVariable("cl_bobcycle", "0.8", 0);// best default for my experimental gun wag (sjb)
+	cl_bob = gEngfuncs.pfnRegisterVariable("cl_bob", "0.01", 0);// best default for my experimental gun wag (sjb)
+	cl_bobup = gEngfuncs.pfnRegisterVariable("cl_bobup", "0.5", 0);
 	cl_waterdist = gEngfuncs.pfnRegisterVariable("cl_waterdist", "4", 0);
 	cl_chasedist = gEngfuncs.pfnRegisterVariable("cl_chasedist", "112", 0);
-	
-	cl_bobcycle_max = gEngfuncs.pfnRegisterVariable("cl_bobcycle_max", "0.45", 0);
-	cl_bobup = gEngfuncs.pfnRegisterVariable("cl_bobup", "0.5", 0);
+	cl_wonbob = gEngfuncs.pfnRegisterVariable("cl_wonbob", "1", 0);
+
 }
 
 
